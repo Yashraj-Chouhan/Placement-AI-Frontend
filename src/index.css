@@ -1,0 +1,91 @@
+@import url('https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@300;400;500;600;700&family=Inter:wght@300;400;500;600;700&display=swap');
+
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  :root {
+    --background: 225 25% 4%;
+    --foreground: 210 20% 95%;
+
+    --card: 225 20% 8%;
+    --card-foreground: 210 20% 95%;
+
+    --popover: 225 20% 8%;
+    --popover-foreground: 210 20% 95%;
+
+    --primary: 168 80% 50%;
+    --primary-foreground: 225 25% 4%;
+
+    --secondary: 225 15% 15%;
+    --secondary-foreground: 210 20% 85%;
+
+    --muted: 225 15% 12%;
+    --muted-foreground: 215 15% 55%;
+
+    --accent: 260 70% 60%;
+    --accent-foreground: 210 20% 95%;
+
+    --destructive: 0 75% 55%;
+    --destructive-foreground: 210 20% 95%;
+
+    --border: 225 15% 18%;
+    --input: 225 15% 18%;
+    --ring: 168 80% 50%;
+
+    --radius: 0.75rem;
+
+    --gradient-primary: linear-gradient(135deg, hsl(168 80% 50%), hsl(200 80% 55%));
+    --gradient-accent: linear-gradient(135deg, hsl(260 70% 60%), hsl(300 70% 55%));
+    --gradient-hero: linear-gradient(180deg, hsl(225 25% 6%) 0%, hsl(225 25% 4%) 100%);
+    --shadow-glow: 0 0 40px -10px hsl(168 80% 50% / 0.3);
+    --shadow-card: 0 8px 32px -8px hsl(0 0% 0% / 0.4);
+
+    --sidebar-background: 225 20% 6%;
+    --sidebar-foreground: 210 20% 85%;
+    --sidebar-primary: 168 80% 50%;
+    --sidebar-primary-foreground: 225 25% 4%;
+    --sidebar-accent: 225 15% 15%;
+    --sidebar-accent-foreground: 210 20% 85%;
+    --sidebar-border: 225 15% 18%;
+    --sidebar-ring: 168 80% 50%;
+  }
+}
+
+@layer base {
+  * {
+    @apply border-border;
+  }
+  body {
+    @apply bg-background text-foreground font-body antialiased;
+  }
+  h1, h2, h3, h4, h5, h6 {
+    @apply font-display;
+  }
+}
+
+@layer utilities {
+  .gradient-text {
+    @apply bg-clip-text text-transparent;
+    background-image: var(--gradient-primary);
+  }
+  .gradient-accent-text {
+    @apply bg-clip-text text-transparent;
+    background-image: var(--gradient-accent);
+  }
+  .glass-card {
+    @apply bg-card/60 backdrop-blur-xl border border-border/50 rounded-xl;
+    box-shadow: var(--shadow-card);
+  }
+  .glow-border {
+    @apply border border-primary/30;
+    box-shadow: var(--shadow-glow);
+  }
+  .hover-lift {
+    @apply transition-all duration-300 hover:-translate-y-1;
+  }
+  .mirror {
+    transform: scaleX(-1);
+  }
+}
