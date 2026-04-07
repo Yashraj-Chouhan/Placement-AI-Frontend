@@ -1,20 +1,26 @@
 import { createContext, useContext, useState, ReactNode } from "react";
-import { authApi, normalizeApiError, UserProfile } from "@/lib/api";
+import axios from "axios";
+import { authApi, normalizeApiError, type UserProfile, userApi } from "@/lib/api";
 
 interface User {
   id: number;
+  profileId?: number;
   name: string;
   email: string;
+  mobileNumber?: string | null;
+  credits: number;
+  activePlan?: string | null;
+  planExpiryDate?: string | null;
 }
 
 interface AuthContextType {
   user: User | null;
   credits: number;
   login: (email: string, password?: string) => Promise<void>;
-  signup: (name: string, email: string, password?: string) => Promise<void>;
+  signup: (name: string, email: string, mobileNumber: string, password?: string) => Promise<void>;
   logout: () => void;
-  useCredit: () => boolean;
-  addCredits: (amount: number) => void;
+  useCredit: () => Promise<boolean>;
+  refreshUser: () => Promise<void>;
 }
 
 const AuthContext = createContext<AuthContextType | null>(null);
@@ -37,14 +43,20 @@ function saveStoredUser(user: User) {
   localStorage.setItem(USER_REGISTRY_KEY, JSON.stringify(users));
 }
 
-function toUserProfile(profile: Partial<UserProfile> & { email: string; name?: string }) {
+function toAppUser(profile: Partial<UserProfile> & { email: string; name?: string }) {
   const storedUsers = getStoredUsers();
   const storedUser = storedUsers[profile.email];
+  const authUserId = profile.authUserId ?? storedUser?.id ?? deriveUserId(profile.email);
 
   return {
-    id: profile.id ?? storedUser?.id ?? deriveUserId(profile.email),
+    id: authUserId,
+    profileId: profile.id ?? storedUser?.profileId,
     name: profile.name ?? storedUser?.name ?? profile.email.split("@")[0],
     email: profile.email,
+    mobileNumber: profile.mobileNumber ?? storedUser?.mobileNumber ?? null,
+    credits: profile.credits ?? storedUser?.credits ?? MAX_FREE_CREDITS,
+    activePlan: profile.activePlan ?? storedUser?.activePlan ?? null,
+    planExpiryDate: profile.planExpiryDate ?? storedUser?.planExpiryDate ?? null,
   };
 }
 
@@ -53,79 +65,121 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     const saved = localStorage.getItem("placeai_user");
     return saved ? JSON.parse(saved) : null;
   });
-  const [credits, setCredits] = useState(() => {
-    const saved = localStorage.getItem("placeai_credits");
-    return saved ? parseInt(saved) : MAX_FREE_CREDITS;
-  });
+
+  const persistUser = (nextUser: User | null) => {
+    setUser(nextUser);
+
+    if (nextUser) {
+      saveStoredUser(nextUser);
+      localStorage.setItem("placeai_user", JSON.stringify(nextUser));
+      return;
+    }
+
+    localStorage.removeItem("placeai_user");
+  };
+
+  const loadUserProfile = async (email: string) => {
+    try {
+      const response = await userApi.getByEmail(email);
+      const resolvedUser = toAppUser(response.data);
+      persistUser(resolvedUser);
+      return resolvedUser;
+    } catch (error) {
+      const storedUser = getStoredUsers()[email];
+
+      if (axios.isAxiosError(error) && error.response?.status === 404 && storedUser) {
+        const syncResponse = await userApi.sync({
+          authUserId: storedUser.id,
+          name: storedUser.name,
+          email: storedUser.email,
+          mobileNumber: storedUser.mobileNumber ?? undefined,
+        });
+        const resolvedUser = toAppUser(syncResponse.data);
+        persistUser(resolvedUser);
+        return resolvedUser;
+      }
+
+      throw error;
+    }
+  };
 
   const login = async (email: string, password?: string) => {
     try {
       const response = await authApi.login(email, password || "");
       const token = response.data;
 
-      // If the response is not a valid token string, throw
       if (typeof token !== "string" || !token.trim()) {
         throw new Error("Invalid response from server.");
       }
 
       localStorage.setItem("placeai_token", token);
-
-      const u = toUserProfile({ email });
-      setUser(u);
-      localStorage.setItem("placeai_user", JSON.stringify(u));
-    } catch (error: any) {
+      await loadUserProfile(email);
+    } catch (error: unknown) {
       console.error("Login Error:", error);
       throw new Error(normalizeApiError(error, "Failed to login. Please check your credentials."));
     }
   };
 
-  const signup = async (name: string, email: string, password?: string) => {
+  const signup = async (name: string, email: string, mobileNumber: string, password?: string) => {
     try {
-      const response = await authApi.register(name, email, password || "");
-      const data = response.data as any;
+      const response = await authApi.register(name, email, mobileNumber, password || "");
+      const data = response.data as UserProfile;
 
-      // Save the user profile locally for future reference
-      const createdUser = toUserProfile({
-        id: data.id,
+      if (typeof data.id !== "number") {
+        throw new Error("Auth service did not return a valid user id.");
+      }
+
+      const syncResponse = await userApi.sync({
+        authUserId: data.id,
         name: data.name || name,
         email: data.email || email,
+        mobileNumber: data.mobileNumber || mobileNumber,
       });
+
+      const createdUser = toAppUser({
+        ...syncResponse.data,
+        authUserId: data.id,
+        name: syncResponse.data.name || name,
+        email: syncResponse.data.email || email,
+        mobileNumber: syncResponse.data.mobileNumber || data.mobileNumber || mobileNumber,
+      });
+
       saveStoredUser(createdUser);
-
-      // DO NOT auto-login after signup.
-      // The user must sign in manually with their credentials.
-      // This ensures proper authentication flow.
-
-      setCredits(MAX_FREE_CREDITS);
-      localStorage.setItem("placeai_credits", String(MAX_FREE_CREDITS));
-    } catch (error: any) {
+    } catch (error: unknown) {
       console.error("Signup Error:", error);
       throw new Error(normalizeApiError(error, "Failed to sign up."));
     }
   };
 
   const logout = () => {
-    setUser(null);
-    localStorage.removeItem("placeai_user");
+    persistUser(null);
     localStorage.removeItem("placeai_token");
   };
 
-  const useCredit = () => {
-    if (credits <= 0) return false;
-    const newCredits = credits - 1;
-    setCredits(newCredits);
-    localStorage.setItem("placeai_credits", String(newCredits));
-    return true;
+  const useCredit = async () => {
+    if (!user) return false;
+
+    try {
+      const response = await userApi.consumeCredit(user.id);
+      const updatedUser = toAppUser(response.data);
+      persistUser(updatedUser);
+      return true;
+    } catch (error: unknown) {
+      if (axios.isAxiosError(error) && (error.response?.status === 400 || error.response?.status === 404)) {
+        return false;
+      }
+
+      throw new Error(normalizeApiError(error, "Failed to update credits."));
+    }
   };
 
-  const addCredits = (amount: number) => {
-    const newCredits = credits + amount;
-    setCredits(newCredits);
-    localStorage.setItem("placeai_credits", String(newCredits));
+  const refreshUser = async () => {
+    if (!user?.email) return;
+    await loadUserProfile(user.email);
   };
 
   return (
-    <AuthContext.Provider value={{ user, credits, login, signup, logout, useCredit, addCredits }}>
+    <AuthContext.Provider value={{ user, credits: user?.credits ?? MAX_FREE_CREDITS, login, signup, logout, useCredit, refreshUser }}>
       {children}
     </AuthContext.Provider>
   );

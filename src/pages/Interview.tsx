@@ -445,7 +445,15 @@ const InterviewPage = () => {
   // ─── Start interview ──────────────────────────────────────────
   const startInterview = async () => {
     if (!selected || !difficulty) return;
-    if (!useCredit()) { setShowUpgrade(true); return; }
+    try {
+      if (!(await useCredit())) {
+        setShowUpgrade(true);
+        return;
+      }
+    } catch (error) {
+      toast.error(normalizeApiError(error, "Failed to update credits."));
+      return;
+    }
 
     setIsLoading(true);
     try {
@@ -818,3 +826,4 @@ const InterviewPage = () => {
 };
 
 export default InterviewPage;
+

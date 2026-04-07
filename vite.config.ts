@@ -34,6 +34,11 @@ export default defineConfig(({ mode }) => ({
         changeOrigin: true,
         secure: false,
       },
+      "/payments": {
+        target: "http://localhost:8081",
+        changeOrigin: true,
+        secure: false,
+      },
       "/ai": {
         target: "http://localhost:8081",
         changeOrigin: true,

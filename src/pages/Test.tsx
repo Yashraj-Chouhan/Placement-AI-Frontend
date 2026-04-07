@@ -82,8 +82,13 @@ const TestPage = () => {
 
   const startTest = async () => {
     if (!selected || !difficulty) return;
-    if (!useCredit()) {
-      setShowUpgrade(true);
+    try {
+      if (!(await useCredit())) {
+        setShowUpgrade(true);
+        return;
+      }
+    } catch (error) {
+      toast.error(normalizeApiError(error, "Failed to update credits."));
       return;
     }
 
@@ -356,3 +361,4 @@ const TestPage = () => {
 };
 
 export default TestPage;
+

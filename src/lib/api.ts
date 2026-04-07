@@ -7,8 +7,20 @@ const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || "";
 
 export interface UserProfile {
   id: number;
+  authUserId?: number;
   name: string;
   email: string;
+  mobileNumber?: string | null;
+  credits?: number;
+  activePlan?: string | null;
+  planExpiryDate?: string | null;
+}
+
+export interface UserProfileSyncPayload {
+  authUserId: number;
+  name: string;
+  email: string;
+  mobileNumber?: string;
 }
 
 export interface StartTestPayload {
@@ -94,10 +106,17 @@ apiClient.interceptors.request.use(
 
 export const authApi = {
   login: (email: string, password: string) => apiClient.post<string>("/auth/login", { email, password }),
-  register: (name: string, email: string, password: string) =>
-    apiClient.post<UserProfile>("/auth/register", { name, email, password }),
+  register: (name: string, email: string, mobileNumber: string, password: string) =>
+    apiClient.post<UserProfile>("/auth/register", { name, email, mobileNumber, password }),
   forgotPassword: (email: string) => apiClient.post("/auth/forgot-password", { email }),
   resetPassword: (payload: {email: string; otp: string; newPassword: string}) => apiClient.post("/auth/reset-password", payload),
+};
+
+export const userApi = {
+  sync: (payload: UserProfileSyncPayload) => apiClient.post<UserProfile>("/users/sync", payload),
+  getByEmail: (email: string) => apiClient.get<UserProfile>("/users/by-email", { params: { email } }),
+  getByAuthUserId: (authUserId: number) => apiClient.get<UserProfile>(`/users/auth/${authUserId}`),
+  consumeCredit: (authUserId: number) => apiClient.post<UserProfile>(`/users/auth/${authUserId}/credits/consume`),
 };
 
 export const testApi = {

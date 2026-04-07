@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { motion, AnimatePresence } from "framer-motion";
-import { Brain, Mail, Lock, User, ArrowRight, Loader2, CheckCircle2, ArrowLeft, KeyRound } from "lucide-react";
+import { Brain, Mail, Lock, User, ArrowRight, Loader2, CheckCircle2, ArrowLeft, KeyRound, Phone } from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -19,6 +19,7 @@ const LoginPage = () => {
   const [mode, setMode] = useState<ViewMode>("login");
   const [name, setName] = useState("");
   const [email, setEmail] = useState("");
+  const [mobileNumber, setMobileNumber] = useState("");
   const [password, setPassword] = useState("");
   const [otp, setOtp] = useState("");
   
@@ -43,16 +44,17 @@ const LoginPage = () => {
 
   const handleSignupSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!email || !password || !name) return;
+    if (!email || !password || !name || !mobileNumber) return;
     
     setIsLoading(true);
     try {
-      await signup(name, email, password);
+      await signup(name, email, mobileNumber, password);
       toast.success("Account created successfully!");
       setSuccessBanner("Account created successfully! Please sign in.");
       setMode("login");
       setPassword("");
       setName("");
+      setMobileNumber("");
     } catch (error: any) {
       toast.error(error.message || "Failed to create account.");
     } finally {
@@ -155,6 +157,20 @@ const LoginPage = () => {
               <motion.div initial={{ opacity: 0, height: 0 }} animate={{ opacity: 1, height: "auto" }} className="relative">
                 <User className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
                 <Input placeholder="Full Name" value={name} onChange={(e) => setName(e.target.value)} className="pl-10 bg-secondary border-border" required />
+              </motion.div>
+            )}
+
+            {mode === "signup" && (
+              <motion.div initial={{ opacity: 0, height: 0 }} animate={{ opacity: 1, height: "auto" }} className="relative">
+                <Phone className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
+                <Input
+                  type="tel"
+                  placeholder="Mobile Number (e.g. +91 9876543210)"
+                  value={mobileNumber}
+                  onChange={(e) => setMobileNumber(e.target.value)}
+                  className="pl-10 bg-secondary border-border"
+                  required
+                />
               </motion.div>
             )}
 
